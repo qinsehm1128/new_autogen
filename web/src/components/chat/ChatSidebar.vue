@@ -31,7 +31,7 @@
       </div>
 
       <!-- 分组列表 -->
-      <el-collapse v-else v-model="modelActiveGroups" accordion>
+      <el-collapse v-else v-model="modelActiveGroups">
         <el-collapse-item
           v-for="group in chatGroups"
           :key="group.id"

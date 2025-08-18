@@ -1036,65 +1036,85 @@ async def stream_message(
 
         db.add(assistant_message)
         await db.flush()
+        
+
+        # 先提交用户消息和初始助手消息
+        await db.commit()
 
         async def generate():
-            try:
-                # 发送用户消息确认
-                yield f"data: {json.dumps({'type': 'user_message', 'content': data.content, 'message_id': user_message_uuid})}\n\n"
-
-                # 发送助手消息开始标识
-                yield f"data: {json.dumps({'type': 'assistant_start', 'message_id': assistant_message_uuid})}\n\n"
-
-                # 获取API密钥和提示词
-                api_key = await get_api_key_by_id(db, conversation.api_key_id)
-                prompt = await get_prompt_by_id(db, conversation.prompt_id)
-
-                # 创建代理
-                agent = await create_agent(api_key, prompt, conversation.agent_state)
-
-                # 流式生成回复
-                full_content = ""
-                async for chunk in agent.run_stream(task=data.content):
-                    # 检查是否被取消
-                    if task_id in active_sse_tasks:
-                        current_task = active_sse_tasks[task_id]
-                        if current_task.cancelled():
-                            yield f"data: {json.dumps({'type': 'cancelled', 'message': '生成已被取消'})}\n\n"
-                            break
-
-                    if hasattr(chunk, 'content') and chunk.content and chunk.type == "ModelClientStreamingChunkEvent":
-                        content_chunk = chunk.content
-                        full_content += content_chunk
-                        yield f"data: {json.dumps({'type': 'chunk', 'content': content_chunk, 'message_id': assistant_message_uuid})}\n\n"
-
-                # 更新助手消息内容
-                assistant_message.content = full_content
-                assistant_message.character_count = len(full_content)
-
-                # 更新对话消息计数
-                conversation.message_count += 2
-
-                # 保存代理状态
+            # 在生成器内部创建新的数据库会话
+            from database import AsyncSessionLocal
+            async with AsyncSessionLocal() as gen_db:
                 try:
-                    conversation.agent_state = await agent.save_state()
+                    # 重新获取对话和消息对象
+                    conversation_obj = await get_conversation_by_uuid(gen_db, data.chat_id)
+                    assistant_msg_result = await gen_db.execute(
+                        select(Message).where(Message.uuid == assistant_message_uuid)
+                    )
+                    assistant_message_obj = assistant_msg_result.scalar_one()
+                    
+                    # 发送用户消息确认
+                    yield f"data: {json.dumps({'type': 'user_message', 'content': data.content, 'message_id': user_message_uuid})}\n\n"
+
+                    # 发送助手消息开始标识
+                    yield f"data: {json.dumps({'type': 'assistant_start', 'message_id': assistant_message_uuid})}\n\n"
+
+                    # 获取API密钥和提示词
+                    api_key = await get_api_key_by_id(gen_db, conversation_obj.api_key_id)
+                    prompt = await get_prompt_by_id(gen_db, conversation_obj.prompt_id)
+
+                    # 创建代理
+                    agent = await create_agent(api_key, prompt, conversation_obj.agent_state)
+
+                    # 流式生成回复
+                    full_content = ""
+                    async for chunk in agent.run_stream(task=data.content):
+                        # 检查是否被取消
+                        if task_id in active_sse_tasks:
+                            current_task = active_sse_tasks[task_id]
+                            if current_task.cancelled():
+                                yield f"data: {json.dumps({'type': 'cancelled', 'message': '生成已被取消'})}\n\n"
+                                break
+
+                        if hasattr(chunk, 'content') and chunk.content and chunk.type == "ModelClientStreamingChunkEvent":
+                            content_chunk = chunk.content
+                            full_content += content_chunk
+                            yield f"data: {json.dumps({'type': 'chunk', 'content': content_chunk, 'message_id': assistant_message_uuid})}\n\n"
+
+                    # 更新助手消息内容
+                    assistant_message_obj.content = full_content
+                    assistant_message_obj.character_count = len(full_content)
+
+                    # 更新对话消息计数
+                    conversation_obj.message_count += 1  # 只增加1，因为用户消息已经计数了
+
+                    # 保存代理状态
+                    try:
+                        state = await agent.save_state()
+                        print(f"代理状态: {state}")
+                        conversation_obj.agent_state = state
+                    except Exception as e:
+                        print(f"保存代理状态失败: {e}")
+                        # 即使状态保存失败，也要保存消息内容
+
+                    # 提交所有更改
+                    await gen_db.commit()
+                    print(f"数据库提交成功，消息内容长度: {len(full_content)}")
+
+                    # 发送完成信号
+                    yield f"data: {json.dumps({'type': 'complete', 'message_id': assistant_message_uuid, 'content': full_content})}\n\n"
+
+                except asyncio.CancelledError:
+                    yield f"data: {json.dumps({'type': 'cancelled', 'message': '生成已被取消'})}\n\n"
+                    raise
                 except Exception as e:
-                    print(f"保存代理状态失败: {e}")
-
-                await db.commit()
-
-                # 发送完成信号
-                yield f"data: {json.dumps({'type': 'complete', 'message_id': assistant_message_uuid, 'content': full_content})}\n\n"
-
-            except asyncio.CancelledError:
-                yield f"data: {json.dumps({'type': 'cancelled', 'message': '生成已被取消'})}\n\n"
-                raise
-            except Exception as e:
-                await db.rollback()
-                yield f"data: {json.dumps({'type': 'error', 'message': f'生成失败: {str(e)}'})}\n\n"
-            finally:
-                # 清理任务
-                if task_id in active_sse_tasks:
-                    del active_sse_tasks[task_id]
+                    print(f"生成失败: {str(e)}")
+                    await db.rollback()
+                    yield f"data: {json.dumps({'type': 'error', 'message': f'生成失败: {str(e)}'})}\n\n"
+                finally:
+                    # 清理任务
+                    if task_id in active_sse_tasks:
+                        del active_sse_tasks[task_id]
 
         # 创建并存储任务
         task = asyncio.create_task(generate().__anext__())
