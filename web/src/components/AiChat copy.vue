@@ -282,15 +282,7 @@
                     @submit="handleSendMessage"
                     @cancel="handleCancelRequest"
                 >
-                    <template #prefix>
-                        <div class="input-prefix">
-                            <el-tooltip content="附件" placement="top">
-                                <el-button round plain size="small">
-                                    <el-icon><Paperclip /></el-icon>
-                                </el-button>
-                            </el-tooltip>
-                        </div>
-                    </template>
+
                 </EditorSender>
             </div>
         </div>
@@ -376,7 +368,6 @@ import {
     Service,
     CopyDocument,
     Refresh,
-    Paperclip,
 } from "@element-plus/icons-vue";
 import { MdPreview } from "md-editor-v3";
 import "md-editor-v3/lib/preview.css";

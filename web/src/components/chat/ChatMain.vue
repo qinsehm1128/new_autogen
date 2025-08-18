@@ -13,6 +13,7 @@
                     v-model="localSelectedModel"
                     placeholder="选择模型"
                     style="width: 200px"
+                    :loading="loadingStates.models"
                     @change="(v) => emit('model-change', v)"
                 >
                     <el-option
@@ -41,6 +42,7 @@
                     v-model="localSelectedPrompt"
                     placeholder="选择提示词"
                     style="width: 200px"
+                    :loading="loadingStates.prompts"
                     clearable
                     @change="(v) => emit('prompt-change', v)"
                 >
@@ -114,7 +116,17 @@
                         </div>
 
                         <div class="message-text">
-                            <div>
+                            <!-- 等待状态显示 -->
+                            <div v-if="message.role === 'assistant' && message.waiting" class="waiting-content">
+                                <div class="loading-dots">
+                                    <span></span>
+                                    <span></span>
+                                    <span></span>
+                                </div>
+                                <span class="waiting-text">AI正在思考中...</span>
+                            </div>
+                            <!-- 正常消息内容 -->
+                            <div v-else>
                                 <MdPreview :modelValue="message.content" />
                                 <span
                                     v-if="
@@ -177,20 +189,12 @@
             <EditorSender
                 ref="editorRef"
                 :placeholder="placeholder"
-                :loading="isLoading"
+                :loading="isSendingMessage"
                 :disabled="!localSelectedModel"
                 @submit="(p) => emit('send-message', p)"
                 @cancel="() => emit('cancel-request')"
             >
-                <template #prefix>
-                    <div class="input-prefix">
-                        <el-tooltip content="附件" placement="top">
-                            <el-button round plain size="small">
-                                <el-icon><Paperclip /></el-icon>
-                            </el-button>
-                        </el-tooltip>
-                    </div>
-                </template>
+
             </EditorSender>
         </div>
     </div>
@@ -209,7 +213,6 @@ import {
     Service,
     CopyDocument,
     Refresh,
-    Paperclip,
 } from "@element-plus/icons-vue";
 
 const props = defineProps({
@@ -217,11 +220,14 @@ const props = defineProps({
     currentMessages: { type: Array, default: () => [] },
     availableModels: { type: Array, default: () => [] },
     availablePrompts: { type: Array, default: () => [] },
-    selectedModel: { type: String, default: "" },
+    selectedModel: { type: [String, Number], default: "" },
     selectedModelName: { type: String, default: "" },
-    selectedPrompt: { type: String, default: "" },
+    selectedPrompt: { type: [String, Number], default: "" },
     isLoading: { type: Boolean, default: false },
     hasStreamingMessage: { type: Boolean, default: false },
+    hasWaitingMessage: { type: Boolean, default: false },
+    isSendingMessage: { type: Boolean, default: false },
+    loadingStates: { type: Object, default: () => ({}) },
     placeholder: { type: String, default: "输入你的问题..." },
     formatTime: { type: Function, required: true },
 });
@@ -467,6 +473,56 @@ defineExpose({ scrollToBottom });
     30% {
         transform: translateY(-10px);
     }
+}
+
+/* 等待状态样式 */
+.waiting-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 0;
+    color: #909399;
+}
+
+.loading-dots {
+    display: flex;
+    gap: 4px;
+}
+
+.loading-dots span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #409eff;
+    animation: loading-bounce 1.4s infinite ease-in-out;
+}
+
+.loading-dots span:nth-child(1) {
+    animation-delay: -0.32s;
+}
+
+.loading-dots span:nth-child(2) {
+    animation-delay: -0.16s;
+}
+
+.loading-dots span:nth-child(3) {
+    animation-delay: 0s;
+}
+
+@keyframes loading-bounce {
+    0%, 80%, 100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    40% {
+        transform: scale(1);
+        opacity: 1;
+    }
+}
+
+.waiting-text {
+    font-size: 14px;
+    font-style: italic;
 }
 
 /* 输入区域 */

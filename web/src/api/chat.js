@@ -128,14 +128,12 @@ export function getChatMessages(chatId, query = {}) {
 }
 
 /**
- * 发送消息
+ * 发送消息（非流式）
  * @param {Object} data - 消息数据
- * @param {string} data.chatId - 对话ID（必填）
+ * @param {string} data.chat_id - 对话ID（必填）
  * @param {string} data.content - 消息内容（必填）
- * @param {string} data.type - 消息类型（text/image/file，默认text）
- * @param {Array} data.files - 附件列表（可选）
- * @param {Object} data.metadata - 消息元数据（可选）
- * @param {boolean} data.stream - 是否流式响应（默认false）
+ * @param {string} data.message_type - 消息类型（text/image/file，默认text）
+ * @param {Object} data.message_metadata - 消息元数据（可选）
  * @returns {Promise} 返回发送结果
  */
 export function sendMessage(data) {
@@ -146,47 +144,110 @@ export function sendMessage(data) {
   });
 }
 
+
+
 /**
- * 发送流式消息
+ * 取消流式消息生成
+ * @param {string} taskId - 任务ID
+ * @returns {Promise} 返回取消结果
+ */
+export function cancelStreamMessage(taskId) {
+  return request({
+    url: "/chat/messages/stream/cancel",
+    method: "post",
+    params: { task_id: taskId },
+  });
+}
+
+/**
+ * 发送流式消息（使用SSE）
  * @param {Object} data - 消息数据
+ * @param {string} data.chat_id - 对话ID
+ * @param {string} data.content - 消息内容
+ * @param {string} data.message_type - 消息类型
+ * @param {Object} data.message_metadata - 消息元数据
  * @param {function} onMessage - 消息回调函数
  * @param {function} onError - 错误回调函数
  * @param {function} onComplete - 完成回调函数
- * @returns {Promise} 返回流式响应控制器
+ * @returns {Promise<{eventSource: EventSource, taskId: string}>} 返回EventSource对象和任务ID
  */
 export function sendStreamMessage(data, onMessage, onError, onComplete) {
-  return new Promise((resolve, reject) => {
-    const eventSource = new EventSource(
-      `/api/chat/messages/stream?${new URLSearchParams(data)}`,
-    );
+  return new Promise(async (resolve, reject) => {
+    try {
+      // 首先发送POST请求启动流式响应
+      const response = await fetch(`http://127.0.0.1:8000/chat/messages/stream`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
 
-    eventSource.onmessage = function (event) {
-      try {
-        const response = JSON.parse(event.data);
-        if (onMessage) onMessage(response);
-      } catch (error) {
-        if (onError) onError(error);
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
-    };
 
-    eventSource.onerror = function (error) {
-      eventSource.close();
+      // 获取任务ID
+      const taskId = response.headers.get('X-Task-ID');
+
+      // 读取流式响应
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+
+      const readStream = async () => {
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+
+            if (done) {
+              if (onComplete) onComplete();
+              break;
+            }
+
+            // 解析SSE数据
+            const chunk = decoder.decode(value);
+            const lines = chunk.split('\n');
+
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                try {
+                  const eventData = JSON.parse(line.slice(6));
+                  if (onMessage) onMessage(eventData);
+
+                  if (eventData.type === "complete") {
+                    if (onComplete) onComplete(eventData);
+                    return;
+                  } else if (eventData.type === "error" || eventData.type === "cancelled") {
+                    if (onError) onError(new Error(eventData.message));
+                    return;
+                  }
+                } catch (parseError) {
+                  console.warn('Failed to parse SSE data:', line, parseError);
+                }
+              }
+            }
+          }
+        } catch (error) {
+          if (onError) onError(error);
+        }
+      };
+
+      // 开始读取流
+      readStream();
+
+      // 返回控制器和任务ID
+      resolve({
+        taskId,
+        cancel: () => {
+          reader.cancel();
+        },
+      });
+
+    } catch (error) {
       if (onError) onError(error);
       reject(error);
-    };
-
-    eventSource.addEventListener("complete", function (event) {
-      eventSource.close();
-      if (onComplete) onComplete();
-      resolve();
-    });
-
-    // 返回控制器，允许取消请求
-    resolve({
-      cancel: () => {
-        eventSource.close();
-      },
-    });
+    }
   });
 }
 
@@ -375,49 +436,7 @@ export function getModelStats(query = {}) {
   });
 }
 
-// ==================== 文件上传接口 ====================
 
-/**
- * 上传文件
- * @param {FormData} formData - 包含文件的FormData
- * @param {function} onProgress - 上传进度回调函数
- * @returns {Promise} 返回上传结果
- */
-export function uploadFile(formData, onProgress) {
-  return request({
-    url: "/chat/upload",
-    method: "post",
-    data: formData,
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-    onUploadProgress: onProgress,
-  });
-}
-
-/**
- * 删除文件
- * @param {string} fileId - 文件ID
- * @returns {Promise} 返回删除结果
- */
-export function deleteFile(fileId) {
-  return request({
-    url: `/chat/files/${fileId}`,
-    method: "delete",
-  });
-}
-
-/**
- * 获取文件信息
- * @param {string} fileId - 文件ID
- * @returns {Promise} 返回文件信息
- */
-export function getFileInfo(fileId) {
-  return request({
-    url: `/chat/files/${fileId}`,
-    method: "get",
-  });
-}
 
 // ==================== 对话导入导出接口 ====================
 

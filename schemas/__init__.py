@@ -26,6 +26,34 @@ from .prompt import (
     PromptTag
 )
 
+from .conversation import (
+    ConversationBase,
+    ConversationCreate,
+    ConversationUpdate,
+    ConversationResponse,
+    ConversationListQuery,
+    MessageBase,
+    MessageCreate,
+    MessageResponse,
+    MessageListQuery,
+    MessageEdit,
+    MessageRegenerate,
+    ChatGroupBase,
+    ChatGroupCreate,
+    ChatGroupUpdate,
+    ChatGroupResponse,
+    ChatGroupListQuery,
+    MoveChatToGroup,
+    BatchMoveChatToGroup,
+    BatchDeleteChats,
+    ExportChatRequest,
+    BatchExportChatsRequest,
+    SearchQuery,
+    ChatSettings,
+    GenerateTitleRequest,
+    ChatStatisticsQuery
+)
+
 from .common import (
     BaseResponse,
     PaginationQuery,
@@ -67,6 +95,33 @@ __all__ = [
     "PromptTestResponse",
     "PromptCategory",
     "PromptTag",
+
+    # Conversation schemas
+    "ConversationBase",
+    "ConversationCreate",
+    "ConversationUpdate",
+    "ConversationResponse",
+    "ConversationListQuery",
+    "MessageBase",
+    "MessageCreate",
+    "MessageResponse",
+    "MessageListQuery",
+    "MessageEdit",
+    "MessageRegenerate",
+    "ChatGroupBase",
+    "ChatGroupCreate",
+    "ChatGroupUpdate",
+    "ChatGroupResponse",
+    "ChatGroupListQuery",
+    "MoveChatToGroup",
+    "BatchMoveChatToGroup",
+    "BatchDeleteChats",
+    "ExportChatRequest",
+    "BatchExportChatsRequest",
+    "SearchQuery",
+    "ChatSettings",
+    "GenerateTitleRequest",
+    "ChatStatisticsQuery",
 
     # Common schemas
     "BaseResponse",

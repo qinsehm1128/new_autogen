@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端集成测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .test-item {
+            margin: 10px 0;
+            padding: 8px;
+            background: #f9f9f9;
+            border-radius: 3px;
+        }
+        .status {
+            font-weight: bold;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+        .status.pending { background: #fff3cd; color: #856404; }
+        .status.success { background: #d4edda; color: #155724; }
+        .status.error { background: #f8d7da; color: #721c24; }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 10px;
+            margin: 10px 0;
+            font-family: monospace;
+            font-size: 12px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+    <h1>前端Vue组件API集成测试</h1>
+    
+    <div class="test-section">
+        <h3>🔧 测试环境检查</h3>
+        <div class="test-item">
+            <span>后端服务状态: </span>
+            <span id="backend-status" class="status pending">检查中...</span>
+            <button onclick="checkBackend()">检查后端</button>
+        </div>
+        <div class="test-item">
+            <span>前端服务状态: </span>
+            <span id="frontend-status" class="status pending">检查中...</span>
+            <button onclick="checkFrontend()">检查前端</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📊 API接口测试</h3>
+        <div class="test-item">
+            <span>获取对话分组: </span>
+            <span id="groups-status" class="status pending">未测试</span>
+            <button onclick="testGetGroups()">测试</button>
+        </div>
+        <div class="test-item">
+            <span>获取可用模型: </span>
+            <span id="models-status" class="status pending">未测试</span>
+            <button onclick="testGetModels()">测试</button>
+        </div>
+        <div class="test-item">
+            <span>获取提示词列表: </span>
+            <span id="prompts-status" class="status pending">未测试</span>
+            <button onclick="testGetPrompts()">测试</button>
+        </div>
+        <div class="test-item">
+            <span>创建新对话: </span>
+            <span id="create-chat-status" class="status pending">未测试</span>
+            <button onclick="testCreateChat()">测试</button>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>💬 流式消息测试</h3>
+        <div class="test-item">
+            <span>SSE流式消息: </span>
+            <span id="sse-status" class="status pending">未测试</span>
+            <button onclick="testSSEMessage()">测试</button>
+            <button onclick="cancelSSE()">取消</button>
+        </div>
+        <div class="test-item">
+            <span>消息取消功能: </span>
+            <span id="cancel-status" class="status pending">未测试</span>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h3>📝 测试日志</h3>
+        <div id="test-log" class="log">
+            等待测试开始...\n
+        </div>
+        <button onclick="clearLog()">清空日志</button>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentSSEController = null;
+        let currentTaskId = null;
+
+        function log(message) {
+            const logElement = document.getElementById('test-log');
+            const timestamp = new Date().toLocaleTimeString();
+            logElement.textContent += `[${timestamp}] ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+
+        function setStatus(elementId, status, text) {
+            const element = document.getElementById(elementId);
+            element.className = `status ${status}`;
+            element.textContent = text;
+        }
+
+        function clearLog() {
+            document.getElementById('test-log').textContent = '';
+        }
+
+        async function checkBackend() {
+            try {
+                log('检查后端服务...');
+                const response = await fetch(`${API_BASE}/health`);
+                if (response.ok) {
+                    setStatus('backend-status', 'success', '运行中');
+                    log('✅ 后端服务正常');
+                } else {
+                    setStatus('backend-status', 'error', '异常');
+                    log('❌ 后端服务异常');
+                }
+            } catch (error) {
+                setStatus('backend-status', 'error', '无法连接');
+                log(`❌ 后端连接失败: ${error.message}`);
+            }
+        }
+
+        function checkFrontend() {
+            // 简单检查前端环境
+            if (window.location.protocol === 'file:') {
+                setStatus('frontend-status', 'error', '需要HTTP服务');
+                log('❌ 请通过HTTP服务器访问此页面');
+            } else {
+                setStatus('frontend-status', 'success', '正常');
+                log('✅ 前端环境正常');
+            }
+        }
+
+        async function testGetGroups() {
+            try {
+                log('测试获取对话分组...');
+                const response = await fetch(`${API_BASE}/chat/groups`);
+                const data = await response.json();
+                
+                if (response.ok && data.code === 200) {
+                    setStatus('groups-status', 'success', '成功');
+                    log(`✅ 获取分组成功，共 ${data.data.length} 个分组`);
+                } else {
+                    setStatus('groups-status', 'error', '失败');
+                    log(`❌ 获取分组失败: ${data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                setStatus('groups-status', 'error', '错误');
+                log(`❌ 获取分组错误: ${error.message}`);
+            }
+        }
+
+        async function testGetModels() {
+            try {
+                log('测试获取可用模型...');
+                const response = await fetch(`${API_BASE}/chat/api-keys/list?status=active`);
+                const data = await response.json();
+                
+                if (response.ok && data.code === 200) {
+                    setStatus('models-status', 'success', '成功');
+                    log(`✅ 获取模型成功，共 ${data.data.list.length} 个模型`);
+                } else {
+                    setStatus('models-status', 'error', '失败');
+                    log(`❌ 获取模型失败: ${data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                setStatus('models-status', 'error', '错误');
+                log(`❌ 获取模型错误: ${error.message}`);
+            }
+        }
+
+        async function testGetPrompts() {
+            try {
+                log('测试获取提示词列表...');
+                const response = await fetch(`${API_BASE}/chat/prompts/list?status=active`);
+                const data = await response.json();
+                
+                if (response.ok && data.code === 200) {
+                    setStatus('prompts-status', 'success', '成功');
+                    log(`✅ 获取提示词成功，共 ${data.data.list.length} 个提示词`);
+                } else {
+                    setStatus('prompts-status', 'error', '失败');
+                    log(`❌ 获取提示词失败: ${data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                setStatus('prompts-status', 'error', '错误');
+                log(`❌ 获取提示词错误: ${error.message}`);
+            }
+        }
+
+        async function testCreateChat() {
+            try {
+                log('测试创建新对话...');
+                const chatData = {
+                    title: '测试对话',
+                    api_key_id: 1,
+                    prompt_id: 1
+                };
+                
+                const response = await fetch(`${API_BASE}/chat/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(chatData)
+                });
+                const data = await response.json();
+                
+                if (response.ok && data.code === 200) {
+                    setStatus('create-chat-status', 'success', '成功');
+                    log(`✅ 创建对话成功，ID: ${data.data.conversation_uuid}`);
+                } else {
+                    setStatus('create-chat-status', 'error', '失败');
+                    log(`❌ 创建对话失败: ${data.message || '未知错误'}`);
+                }
+            } catch (error) {
+                setStatus('create-chat-status', 'error', '错误');
+                log(`❌ 创建对话错误: ${error.message}`);
+            }
+        }
+
+        async function testSSEMessage() {
+            try {
+                log('测试SSE流式消息...');
+                
+                const messageData = {
+                    chat_id: 'test-chat-id',
+                    content: '你好，这是一个测试消息',
+                    message_type: 'text'
+                };
+
+                const response = await fetch(`${API_BASE}/chat/messages/stream`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(messageData)
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
+
+                currentTaskId = response.headers.get('X-Task-ID');
+                log(`📡 开始接收流式数据，任务ID: ${currentTaskId}`);
+
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+
+                while (true) {
+                    const { done, value } = await reader.read();
+                    
+                    if (done) {
+                        setStatus('sse-status', 'success', '完成');
+                        log('✅ SSE流式消息测试完成');
+                        break;
+                    }
+
+                    const chunk = decoder.decode(value);
+                    const lines = chunk.split('\n');
+                    
+                    for (const line of lines) {
+                        if (line.startsWith('data: ')) {
+                            try {
+                                const data = JSON.parse(line.slice(6));
+                                log(`📨 收到: ${data.type} - ${data.content || data.message || ''}`);
+                                
+                                if (data.type === 'complete') {
+                                    setStatus('sse-status', 'success', '完成');
+                                    return;
+                                } else if (data.type === 'error') {
+                                    setStatus('sse-status', 'error', '错误');
+                                    return;
+                                }
+                            } catch (e) {
+                                log(`⚠️ 解析数据失败: ${line}`);
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                setStatus('sse-status', 'error', '错误');
+                log(`❌ SSE测试错误: ${error.message}`);
+            }
+        }
+
+        async function cancelSSE() {
+            if (currentTaskId) {
+                try {
+                    log(`🛑 取消任务: ${currentTaskId}`);
+                    const response = await fetch(`${API_BASE}/chat/messages/stream/cancel?task_id=${currentTaskId}`, {
+                        method: 'POST'
+                    });
+                    const data = await response.json();
+                    
+                    if (response.ok && data.code === 200) {
+                        setStatus('cancel-status', 'success', '成功');
+                        log('✅ 任务取消成功');
+                    } else {
+                        setStatus('cancel-status', 'error', '失败');
+                        log(`❌ 任务取消失败: ${data.message}`);
+                    }
+                } catch (error) {
+                    setStatus('cancel-status', 'error', '错误');
+                    log(`❌ 取消任务错误: ${error.message}`);
+                }
+            } else {
+                log('⚠️ 没有活跃的任务可以取消');
+            }
+        }
+
+        // 页面加载时自动检查环境
+        window.onload = function() {
+            checkFrontend();
+            checkBackend();
+        };
+    </script>
+</body>
+</html>

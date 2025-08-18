@@ -7,22 +7,16 @@ import asyncio
 
 from database import create_tables
 from api import api_keys_router, prompts_router, common_router
+from api.chat import router as chat_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """应用生命周期管理"""
-    # 启动时执行
+
     await create_tables()
-    print("数据库表创建完成")
-    print("Chat Config API 服务启动成功")
-    print("API文档地址: http://localhost:8000/docs")
 
     yield
 
-    # 关闭时执行（如果需要的话）
-    print("Chat Config API 服务正在关闭...")
-
-# 创建FastAPI应用实例
+#
 app = FastAPI(
     title="Chat Config API",
     description="聊天配置管理系统API",
@@ -30,22 +24,23 @@ app = FastAPI(
     lifespan=lifespan
 )
 
-# 添加CORS中间件
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 在生产环境中应该设置具体的域名
+    allow_origins=["*"], 
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# 注册路由
+
 app.include_router(api_keys_router)
 app.include_router(prompts_router)
 app.include_router(common_router)
+app.include_router(chat_router)
 
 
-# 全局异常处理
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc):
     return JSONResponse(

@@ -25,7 +25,13 @@
     </div>
 
     <div class="chat-groups">
-      <el-collapse v-model="modelActiveGroups" accordion>
+      <!-- 加载状态 -->
+      <div v-if="loadingStates.groups" class="loading-container">
+        <el-skeleton :rows="3" animated />
+      </div>
+
+      <!-- 分组列表 -->
+      <el-collapse v-else v-model="modelActiveGroups" accordion>
         <el-collapse-item
           v-for="group in chatGroups"
           :key="group.id"
@@ -85,6 +91,7 @@ const props = defineProps({
   chatGroups: { type: Array, required: true },
   activeGroups: { type: Array, required: true },
   currentChatId: { type: [String, Number, null], default: null },
+  loadingStates: { type: Object, default: () => ({}) },
   formatTime: { type: Function, required: true }
 })
 
@@ -172,6 +179,11 @@ const modelActiveGroups = computed({
 .chat-groups::-webkit-scrollbar-track { background: transparent; }
 .chat-groups::-webkit-scrollbar-thumb { background: #c0c4cc; border-radius: 3px; }
 .chat-groups::-webkit-scrollbar-thumb:hover { background: #909399; }
+
+/* 加载状态 */
+.loading-container {
+  padding: 16px;
+}
 
 /* 响应式：窄屏时侧边栏置顶且减少高度 */
 @media (max-width: 768px) {

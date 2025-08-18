@@ -28,7 +28,7 @@ openai_model_client = OpenAIChatCompletionClient(
 streaming_assistant = AssistantAgent(
     name="assistant",
     model_client=openai_model_client,
-    # model_client_stream=True,
+    model_client_stream=True,
 )
 
 
@@ -38,10 +38,10 @@ async def main():
     while True:
         try:
             data = input("请输入问题:")
-            # async for message in streaming_assistant.run(task=data):  # type: ignore
-            #     print(message)
-            result = await streaming_assistant.run(task=data)
-            print(type(result))
+            async for message in streaming_assistant.run_stream(task=data):  # type: ignore
+                print(message)
+            # result = await streaming_assistant.run(task=data)
+            # print(type(result))
 
             print(result.messages)
         except :
