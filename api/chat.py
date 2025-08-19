@@ -1103,7 +1103,7 @@ async def stream_message(
 
                     # 发送完成信号
                     yield f"data: {json.dumps({'type': 'complete', 'message_id': assistant_message_uuid, 'content': full_content})}\n\n"
-
+                    
                 except asyncio.CancelledError:
                     yield f"data: {json.dumps({'type': 'cancelled', 'message': '生成已被取消'})}\n\n"
                     raise

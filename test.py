@@ -15,7 +15,7 @@ from autogen_ext.models.openai import OpenAIChatCompletionClient
 import warnings
 warnings.filterwarnings("ignore", message="Resolved model mismatch:.*")
 
-api_key = "sk-yLCZLIlIrSK2V06h5502RshRIMyiwgIoSFTWiCtfPC4QpfwR"
+api_key = ""
 base_url="https://api.001hao.com/v1"
 
 

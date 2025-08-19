@@ -42,8 +42,8 @@ async def root():
 
 async def get_agent() -> AssistantAgent:
     """获取助手代理"""
-    api_key = "sk-yLCZLIlIrSK2V06h5502RshRIMyiwgIoSFTWiCtfPC4QpfwR"
-    base_url = "https://api.001hao.com/v1"
+    api_key = ""
+    base_url = ""
 
     openai_model_client = OpenAIChatCompletionClient(
         model="gpt-4",

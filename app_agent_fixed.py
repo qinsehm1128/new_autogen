@@ -102,8 +102,8 @@ manager = ConnectionManager()
 async def get_agent() -> AssistantAgent:
     """获取助手代理，从文件加载状态"""
     # 从配置获取模型客户端
-    api_key = "sk-yLCZLIlIrSK2V06h5502RshRIMyiwgIoSFTWiCtfPC4QpfwR"
-    base_url = "https://api.001hao.com/v1"
+    api_key = ""
+    base_url = ""
 
     openai_model_client = OpenAIChatCompletionClient(
         model="gpt-4",
