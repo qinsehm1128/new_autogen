@@ -109,7 +109,14 @@ async def create_agent(api_key: ApiKey, prompt: Prompt, agent_state: Dict = None
     openai_model_client = OpenAIChatCompletionClient(
         model=api_key.model_name,
         api_key=api_key.api_key,
-        base_url=api_key.model_url
+        base_url=api_key.model_url,
+        model_info={
+            "vision": False,
+            "function_calling": True,
+            "json_output": True,
+            "family": "unknown",
+            "structured_output": True
+        }
     )
 
     # 创建代理
@@ -118,6 +125,7 @@ async def create_agent(api_key: ApiKey, prompt: Prompt, agent_state: Dict = None
         model_client=openai_model_client,
         model_client_stream=True,
         system_message=prompt.content,
+
     )
 
     # 如果有状态，加载它
